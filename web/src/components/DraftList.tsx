@@ -1,42 +1,41 @@
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 import { Avatar } from "./Avatar";
 import type { Draft } from "../lib/types";
 
+async function fetchDrafts(mailboxId: string): Promise<Draft[]> {
+  const { data, error } = await supabase
+    .from("drafts")
+    .select("*")
+    .eq("mailbox_id", mailboxId)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (data as Draft[]) ?? [];
+}
+
 export function DraftList({
   mailboxId,
-  version,
   onOpen,
 }: {
   mailboxId: string;
-  version: number;
   onOpen: (draft: Draft) => void;
 }) {
-  const [drafts, setDrafts] = useState<Draft[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: drafts, isLoading } = useQuery({
+    queryKey: ["drafts", mailboxId],
+    queryFn: () => fetchDrafts(mailboxId),
+  });
 
-  function load() {
-    setLoading(true);
-    supabase
-      .from("drafts")
-      .select("*")
-      .eq("mailbox_id", mailboxId)
-      .order("updated_at", { ascending: false })
-      .then(({ data }) => {
-        setDrafts((data as Draft[]) ?? []);
-        setLoading(false);
-      });
-  }
+  const deleteDraft = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("drafts").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["drafts", mailboxId] }),
+  });
 
-  useEffect(load, [mailboxId, version]);
-
-  async function handleDelete(id: string) {
-    await supabase.from("drafts").delete().eq("id", id);
-    load();
-  }
-
-  if (loading) return <p>Loading…</p>;
-  if (drafts.length === 0) return <p className="muted">No drafts.</p>;
+  if (isLoading) return <p>Loading…</p>;
+  if (!drafts || drafts.length === 0) return <p className="muted">No drafts.</p>;
 
   return (
     <ul className="thread-list">
@@ -63,7 +62,8 @@ export function DraftList({
             </a>
             <button
               type="button"
-              onClick={() => handleDelete(d.id)}
+              onClick={() => deleteDraft.mutate(d.id)}
+              disabled={deleteDraft.isPending}
               style={{
                 margin: "0 1rem",
                 background: "transparent",

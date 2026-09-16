@@ -1,14 +1,42 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { Logo } from "../components/Logo";
 import type { Client, Domain, Mailbox } from "../lib/types";
 
-function FeeCell({ mailbox, onUpdated }: { mailbox: Mailbox; onUpdated: (fee: number) => void }) {
+async function fetchAdminOverview() {
+  const [c, d, m] = await Promise.all([
+    supabase.from("clients").select("*").order("name"),
+    supabase.from("domains").select("*").order("domain_name"),
+    supabase.from("mailboxes").select("*").order("address"),
+  ]);
+  if (c.error) throw c.error;
+  if (d.error) throw d.error;
+  if (m.error) throw m.error;
+  return {
+    clients: (c.data as Client[]) ?? [],
+    domains: (d.data as Domain[]) ?? [],
+    mailboxes: (m.data as Mailbox[]) ?? [],
+  };
+}
+
+function FeeCell({ mailbox }: { mailbox: Mailbox }) {
+  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(mailbox.monthly_fee_kes);
-  const [saving, setSaving] = useState(false);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("mailboxes").update({ monthly_fee_kes: value }).eq("id", mailbox.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
+      setEditing(false);
+    },
+  });
 
   if (!editing) {
     return (
@@ -26,16 +54,6 @@ function FeeCell({ mailbox, onUpdated }: { mailbox: Mailbox; onUpdated: (fee: nu
     );
   }
 
-  async function save() {
-    setSaving(true);
-    const { error } = await supabase.from("mailboxes").update({ monthly_fee_kes: value }).eq("id", mailbox.id);
-    setSaving(false);
-    if (!error) {
-      onUpdated(value);
-      setEditing(false);
-    }
-  }
-
   return (
     <div className="inline-input">
       <input
@@ -45,10 +63,10 @@ function FeeCell({ mailbox, onUpdated }: { mailbox: Mailbox; onUpdated: (fee: nu
         style={{ width: "5.5rem" }}
         autoFocus
       />
-      <button type="button" onClick={save} disabled={saving}>
-        {saving ? "…" : "Save"}
+      <button type="button" onClick={() => save.mutate()} disabled={save.isPending}>
+        {save.isPending ? "…" : "Save"}
       </button>
-      <button type="button" onClick={() => setEditing(false)} disabled={saving}>
+      <button type="button" onClick={() => setEditing(false)} disabled={save.isPending}>
         Cancel
       </button>
     </div>
@@ -57,24 +75,13 @@ function FeeCell({ mailbox, onUpdated }: { mailbox: Mailbox; onUpdated: (fee: nu
 
 export function AdminPage() {
   const { user, signOut } = useAuth();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
+  const queryClient = useQueryClient();
   const [statusPending, setStatusPending] = useState<string | null>(null);
 
-  function reload() {
-    Promise.all([
-      supabase.from("clients").select("*").order("name"),
-      supabase.from("domains").select("*").order("domain_name"),
-      supabase.from("mailboxes").select("*").order("address"),
-    ]).then(([c, d, m]) => {
-      setClients((c.data as Client[]) ?? []);
-      setDomains((d.data as Domain[]) ?? []);
-      setMailboxes((m.data as Mailbox[]) ?? []);
-    });
-  }
-
-  useEffect(reload, []);
+  const { data } = useQuery({ queryKey: ["admin-overview"], queryFn: fetchAdminOverview });
+  const clients = data?.clients ?? [];
+  const domains = data?.domains ?? [];
+  const mailboxes = data?.mailboxes ?? [];
 
   async function toggleStatus(m: Mailbox) {
     const nextStatus = m.status === "active" ? "suspended_admin" : "active";
@@ -82,7 +89,7 @@ export function AdminPage() {
     const { error } = await supabase.from("mailboxes").update({ status: nextStatus }).eq("id", m.id);
     setStatusPending(null);
     if (!error) {
-      setMailboxes((prev) => prev.map((row) => (row.id === m.id ? { ...row, status: nextStatus } : row)));
+      queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
     }
   }
 
@@ -125,14 +132,7 @@ export function AdminPage() {
                   <span className={`status-pill status-${m.status}`}>{m.status}</span>
                 </td>
                 <td>
-                  <FeeCell
-                    mailbox={m}
-                    onUpdated={(fee) =>
-                      setMailboxes((prev) =>
-                        prev.map((row) => (row.id === m.id ? { ...row, monthly_fee_kes: fee } : row)),
-                      )
-                    }
-                  />
+                  <FeeCell mailbox={m} />
                 </td>
                 <td className="app-header-actions" style={{ marginLeft: 0, gap: "0.6rem" }}>
                   <Link to={`/admin/mailbox/${m.id}/inbox`}>View inbox</Link>

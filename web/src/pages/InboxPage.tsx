@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { ThreadList } from "../components/ThreadList";
@@ -9,6 +9,18 @@ import { Composer } from "../components/Composer";
 import { InboxShell, type Folder } from "../components/InboxShell";
 import type { Draft, Mailbox } from "../lib/types";
 
+async function fetchMailboxById(id: string): Promise<Mailbox | null> {
+  const { data, error } = await supabase.from("mailboxes").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return (data as Mailbox) ?? null;
+}
+
+async function fetchDraftById(id: string): Promise<Draft | null> {
+  const { data, error } = await supabase.from("drafts").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return (data as Draft) ?? null;
+}
+
 // Renders either the logged-in client's own inbox (no :mailboxId in the
 // route) or, for an admin browsing a specific client, that mailbox's inbox
 // (route has :mailboxId). Same RLS-scoped queries serve both - an admin can
@@ -17,47 +29,30 @@ export function InboxPage() {
   const { mailboxId: routeMailboxId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { mailbox: ownMailbox, isAdmin, loading: authLoading } = useAuth();
-  const [mailbox, setMailbox] = useState<Mailbox | null>(null);
-  const [lookupDone, setLookupDone] = useState(false);
-  const [editingDraft, setEditingDraft] = useState<Draft | null>(null);
-  const [draftsVersion, setDraftsVersion] = useState(0);
+  const queryClient = useQueryClient();
 
   const folder = (searchParams.get("folder") as Folder | null) ?? "inbox";
   const composing = searchParams.get("compose") === "1";
   const draftIdParam = searchParams.get("draft");
 
-  useEffect(() => {
-    if (!routeMailboxId) {
-      setMailbox(ownMailbox);
-      setLookupDone(!authLoading);
-      return;
-    }
-    setLookupDone(false);
-    supabase
-      .from("mailboxes")
-      .select("*")
-      .eq("id", routeMailboxId)
-      .maybeSingle()
-      .then(({ data }) => {
-        setMailbox((data as Mailbox) ?? null);
-        setLookupDone(true);
-      });
-  }, [routeMailboxId, ownMailbox, authLoading]);
+  const { data: routedMailbox, isLoading: mailboxLoading } = useQuery({
+    queryKey: ["mailbox", routeMailboxId],
+    queryFn: () => fetchMailboxById(routeMailboxId as string),
+    enabled: Boolean(routeMailboxId),
+  });
 
-  useEffect(() => {
-    if (!composing || !draftIdParam) {
-      setEditingDraft(null);
-      return;
-    }
-    if (editingDraft?.id === draftIdParam) return;
-    supabase
-      .from("drafts")
-      .select("*")
-      .eq("id", draftIdParam)
-      .maybeSingle()
-      .then(({ data }) => setEditingDraft((data as Draft) ?? null));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composing, draftIdParam]);
+  const mailbox = routeMailboxId ? (routedMailbox ?? null) : ownMailbox;
+  const lookupDone = routeMailboxId ? !mailboxLoading : !authLoading;
+
+  // openDraft seeds this same query key directly from the row DraftList
+  // already fetched, so resuming a draft you just clicked doesn't wait on
+  // a redundant refetch - only a direct URL/refresh with ?draft=<id> hits
+  // the network.
+  const { data: editingDraft } = useQuery({
+    queryKey: ["draft", draftIdParam],
+    queryFn: () => fetchDraftById(draftIdParam as string),
+    enabled: composing && Boolean(draftIdParam),
+  });
 
   if (!lookupDone) return <div className="centered">Loading mailbox…</div>;
 
@@ -84,11 +79,10 @@ export function InboxPage() {
 
   function closeComposer() {
     setSearchParams(folder === "inbox" ? {} : { folder });
-    setDraftsVersion((v) => v + 1);
   }
 
   function openDraft(d: Draft) {
-    setEditingDraft(d);
+    queryClient.setQueryData(["draft", d.id], d);
     setSearchParams({ compose: "1", draft: d.id });
   }
 
@@ -97,18 +91,15 @@ export function InboxPage() {
       {composing ? (
         <Composer
           mailboxId={mailbox.id}
-          draft={editingDraft ?? undefined}
+          draft={draftIdParam ? (editingDraft ?? undefined) : undefined}
           onSent={closeComposer}
           onDiscard={closeComposer}
-          onSaved={() => setDraftsVersion((v) => v + 1)}
         />
       ) : (
         <>
           {folder === "inbox" && <ThreadList mailboxId={mailbox.id} basePath={basePath} />}
           {folder === "sent" && <SentList mailboxId={mailbox.id} basePath={basePath} />}
-          {folder === "drafts" && (
-            <DraftList mailboxId={mailbox.id} version={draftsVersion} onOpen={openDraft} />
-          )}
+          {folder === "drafts" && <DraftList mailboxId={mailbox.id} onOpen={openDraft} />}
         </>
       )}
     </InboxShell>

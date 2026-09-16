@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 import { provisionMailbox } from "../lib/api";
 import type { Domain } from "../lib/types";
@@ -8,48 +9,41 @@ function randomPassword(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 14);
 }
 
+async function fetchDomains(): Promise<Domain[]> {
+  const { data, error } = await supabase.from("domains").select("*").order("domain_name");
+  if (error) throw error;
+  return (data as Domain[]) ?? [];
+}
+
 // One thing only: create a mailbox on a domain that's already configured
 // (see AdminOnboardDomainPage). No client, no domain, no Resend account to
 // pick here - just the domain and the mailbox name.
 export function AdminProvisionPage() {
-  const [domains, setDomains] = useState<Domain[]>([]);
+  const queryClient = useQueryClient();
+  const { data: domains } = useQuery({ queryKey: ["domains"], queryFn: fetchDomains });
   const [domainId, setDomainId] = useState("");
   const [localPart, setLocalPart] = useState("");
   const [initialPassword, setInitialPassword] = useState(randomPassword());
   const [monthlyFeeKes, setMonthlyFeeKes] = useState(500);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Awaited<ReturnType<typeof provisionMailbox>> | null>(null);
 
   useEffect(() => {
-    supabase
-      .from("domains")
-      .select("*")
-      .order("domain_name")
-      .then(({ data }) => {
-        const rows = (data as Domain[]) ?? [];
-        setDomains(rows);
-        setDomainId((current) => current || rows[0]?.id || "");
-      });
-  }, []);
+    if (domains && !domainId) setDomainId(domains[0]?.id ?? "");
+  }, [domains, domainId]);
 
-  const selectedDomain = domains.find((d) => d.id === domainId);
+  const selectedDomain = domains?.find((d) => d.id === domainId);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    setResult(null);
-    try {
-      const data = await provisionMailbox({ domainId, localPart, initialPassword, monthlyFeeKes });
-      setResult(data);
+  const provision = useMutation({
+    mutationFn: () => provisionMailbox({ domainId, localPart, initialPassword, monthlyFeeKes }),
+    onSuccess: () => {
       setLocalPart("");
       setInitialPassword(randomPassword());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+      queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
+    },
+  });
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    provision.mutate();
   }
 
   return (
@@ -59,7 +53,7 @@ export function AdminProvisionPage() {
       </Link>
       <h1>New mailbox</h1>
 
-      {domains.length === 0 ? (
+      {domains?.length === 0 ? (
         <p className="error">
           No domains configured yet. <Link to="/admin/domains/new">Add a domain</Link> first.
         </p>
@@ -68,7 +62,7 @@ export function AdminProvisionPage() {
           <label>
             Domain
             <select value={domainId} onChange={(e) => setDomainId(e.target.value)}>
-              {domains.map((d) => (
+              {domains?.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.domain_name} ({d.status})
                 </option>
@@ -109,16 +103,20 @@ export function AdminProvisionPage() {
             />
           </label>
 
-          {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Creating…" : "Create mailbox"}
+          {provision.error && (
+            <p className="error">
+              {provision.error instanceof Error ? provision.error.message : String(provision.error)}
+            </p>
+          )}
+          <button type="submit" disabled={provision.isPending}>
+            {provision.isPending ? "Creating…" : "Create mailbox"}
           </button>
         </form>
       )}
 
-      {result && (
+      {provision.data && (
         <div className="provision-result">
-          <h2>✅ {result.address} created</h2>
+          <h2>✅ {provision.data.address} created</h2>
           <p>Give the client this address and the password above to log in.</p>
         </div>
       )}

@@ -1,29 +1,28 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 import { Avatar } from "./Avatar";
 import type { Message } from "../lib/types";
 
+async function fetchSent(mailboxId: string): Promise<Message[]> {
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("mailbox_id", mailboxId)
+    .eq("direction", "outbound")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as Message[]) ?? [];
+}
+
 export function SentList({ mailboxId, basePath }: { mailboxId: string; basePath: string }) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: messages, isLoading } = useQuery({
+    queryKey: ["sent-messages", mailboxId],
+    queryFn: () => fetchSent(mailboxId),
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    supabase
-      .from("messages")
-      .select("*")
-      .eq("mailbox_id", mailboxId)
-      .eq("direction", "outbound")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setMessages((data as Message[]) ?? []);
-        setLoading(false);
-      });
-  }, [mailboxId]);
-
-  if (loading) return <p>Loading…</p>;
-  if (messages.length === 0) return <p className="muted">No sent messages yet.</p>;
+  if (isLoading) return <p>Loading…</p>;
+  if (!messages || messages.length === 0) return <p className="muted">No sent messages yet.</p>;
 
   return (
     <ul className="thread-list">

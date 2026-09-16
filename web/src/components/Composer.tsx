@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 import { sendEmail, fileToBase64 } from "../lib/api";
 import type { Draft } from "../lib/types";
@@ -29,21 +30,18 @@ export function Composer({
   onDiscard?: () => void;
 }) {
   const isReply = Boolean(inReplyToMessageId);
+  const queryClient = useQueryClient();
   const [draftId, setDraftId] = useState<string | undefined>(draft?.id);
   const [to, setTo] = useState(draft ? draft.to_addresses.join(", ") : defaultTo ?? "");
   const [subject, setSubject] = useState(draft?.subject ?? defaultSubject ?? "");
   const [body, setBody] = useState(draft?.body_text ?? "");
   const [files, setFiles] = useState<File[]>([]);
-  const [sending, setSending] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  async function handleSend(e: FormEvent) {
-    e.preventDefault();
-    setSending(true);
-    setError(null);
-    try {
+  const invalidateDrafts = () => queryClient.invalidateQueries({ queryKey: ["drafts", mailboxId] });
+
+  const send = useMutation({
+    mutationFn: async () => {
       const attachments = await Promise.all(
         files.map(async (f) => ({
           fileName: f.name,
@@ -62,6 +60,8 @@ export function Composer({
       if (draftId) {
         await supabase.from("drafts").delete().eq("id", draftId);
       }
+    },
+    onSuccess: () => {
       setBody("");
       setFiles([]);
       if (!isReply) {
@@ -69,18 +69,15 @@ export function Composer({
         setSubject("");
       }
       setDraftId(undefined);
+      invalidateDrafts();
+      queryClient.invalidateQueries({ queryKey: ["threads", mailboxId] });
+      queryClient.invalidateQueries({ queryKey: ["sent-messages", mailboxId] });
       onSent?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSending(false);
-    }
-  }
+    },
+  });
 
-  async function handleSaveDraft() {
-    setSaving(true);
-    setError(null);
-    try {
+  const saveDraft = useMutation({
+    mutationFn: async () => {
       const payload = {
         mailbox_id: mailboxId,
         to_addresses: to.split(",").map((s) => s.trim()).filter(Boolean),
@@ -89,35 +86,42 @@ export function Composer({
         updated_at: new Date().toISOString(),
       };
       if (draftId) {
-        const { error: updateError } = await supabase.from("drafts").update(payload).eq("id", draftId);
-        if (updateError) throw updateError;
+        const { error } = await supabase.from("drafts").update(payload).eq("id", draftId);
+        if (error) throw error;
       } else {
-        const { data, error: insertError } = await supabase
-          .from("drafts")
-          .insert(payload)
-          .select("id")
-          .single();
-        if (insertError) throw insertError;
+        const { data, error } = await supabase.from("drafts").insert(payload).select("id").single();
+        if (error) throw error;
         setDraftId(data.id as string);
       }
+    },
+    onSuccess: () => {
       setSavedAt(new Date().toLocaleTimeString());
+      invalidateDrafts();
       onSaved?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-    }
+    },
+  });
+
+  const discard = useMutation({
+    mutationFn: async () => {
+      if (draftId) {
+        await supabase.from("drafts").delete().eq("id", draftId);
+      }
+    },
+    onSuccess: () => {
+      invalidateDrafts();
+      onDiscard?.();
+    },
+  });
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    send.mutate();
   }
 
-  async function handleDiscard() {
-    if (draftId) {
-      await supabase.from("drafts").delete().eq("id", draftId);
-    }
-    onDiscard?.();
-  }
+  const error = send.error ?? saveDraft.error ?? discard.error;
 
   return (
-    <form className="composer" onSubmit={handleSend}>
+    <form className="composer" onSubmit={handleSubmit}>
       {!isReply && (
         <>
           <input placeholder="To (comma-separated)" value={to} onChange={(e) => setTo(e.target.value)} required />
@@ -132,24 +136,25 @@ export function Composer({
         required
       />
       <input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error">{error instanceof Error ? error.message : String(error)}</p>}
       <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-        <button type="submit" disabled={sending}>
-          {sending ? "Sending…" : isReply ? "Reply" : "Send"}
+        <button type="submit" disabled={send.isPending}>
+          {send.isPending ? "Sending…" : isReply ? "Reply" : "Send"}
         </button>
         {!isReply && (
           <>
             <button
               type="button"
-              onClick={handleSaveDraft}
-              disabled={saving}
+              onClick={() => saveDraft.mutate()}
+              disabled={saveDraft.isPending}
               style={{ background: "transparent", color: "var(--text)", borderColor: "var(--border)" }}
             >
-              {saving ? "Saving…" : "Save draft"}
+              {saveDraft.isPending ? "Saving…" : "Save draft"}
             </button>
             <button
               type="button"
-              onClick={handleDiscard}
+              onClick={() => discard.mutate()}
+              disabled={discard.isPending}
               style={{ background: "transparent", color: "var(--danger)", borderColor: "var(--danger-soft)" }}
             >
               Discard

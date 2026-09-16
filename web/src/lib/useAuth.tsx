@@ -22,8 +22,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let currentUserId: string | null = null;
 
-    async function loadForSession(nextSession: Session | null) {
+    async function loadForSession(nextSession: Session | null, showLoading: boolean) {
+      if (showLoading) setLoading(true);
       setSession(nextSession);
       if (!nextSession) {
         setMailbox(null);
@@ -42,12 +44,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      loadForSession(initialSession);
+      currentUserId = initialSession?.user.id ?? null;
+      loadForSession(initialSession, true);
     });
 
+    // Supabase re-validates the session (and fires this) whenever the tab
+    // regains focus, and again on every silent token refresh - not just on
+    // actual sign-in/out. Only the initial load and a genuine identity
+    // change (different user, or signing out) should show the loading
+    // gate: ProtectedRoute unmounts the whole routed page while loading is
+    // true, so gating on every same-user token refresh was wiping
+    // in-progress form state (e.g. mid-wizard) every time someone switched
+    // tabs and came back.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setLoading(true);
-      loadForSession(nextSession);
+      const nextUserId = nextSession?.user.id ?? null;
+      const identityChanged = nextUserId !== currentUserId;
+      currentUserId = nextUserId;
+      loadForSession(nextSession, identityChanged);
     });
 
     return () => {

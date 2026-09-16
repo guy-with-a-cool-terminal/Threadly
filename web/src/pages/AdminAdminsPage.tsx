@@ -1,44 +1,32 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../lib/useAuth";
-import { grantAdmin, listAdmins, revokeAdmin, type AdminSummary } from "../lib/api";
+import { grantAdmin, listAdmins, revokeAdmin } from "../lib/api";
 
 export function AdminAdminsPage() {
   const { user } = useAuth();
-  const [admins, setAdmins] = useState<AdminSummary[]>([]);
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  function reload() {
-    listAdmins().then(setAdmins);
-  }
+  const { data: admins } = useQuery({ queryKey: ["admins"], queryFn: listAdmins });
 
-  useEffect(reload, []);
-
-  async function handleGrant(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await grantAdmin(email.trim());
+  const grant = useMutation({
+    mutationFn: (email: string) => grantAdmin(email),
+    onSuccess: () => {
       setEmail("");
-      reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
-  }
+      queryClient.invalidateQueries({ queryKey: ["admins"] });
+    },
+  });
 
-  async function handleRevoke(authUserId: string) {
-    setError(null);
-    try {
-      await revokeAdmin(authUserId);
-      reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+  const revoke = useMutation({
+    mutationFn: (authUserId: string) => revokeAdmin(authUserId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admins"] }),
+  });
+
+  function handleGrant(e: FormEvent) {
+    e.preventDefault();
+    grant.mutate(email.trim());
   }
 
   return (
@@ -62,13 +50,13 @@ export function AdminAdminsPage() {
           </tr>
         </thead>
         <tbody>
-          {admins.map((a) => (
+          {admins?.map((a) => (
             <tr key={a.auth_user_id}>
               <td>{a.email}</td>
               <td className="muted">{new Date(a.created_at).toLocaleDateString()}</td>
               <td>
                 {a.auth_user_id !== user?.id && admins.length > 1 && (
-                  <button type="button" onClick={() => handleRevoke(a.auth_user_id)}>
+                  <button type="button" onClick={() => revoke.mutate(a.auth_user_id)} disabled={revoke.isPending}>
                     Revoke
                   </button>
                 )}
@@ -94,9 +82,13 @@ export function AdminAdminsPage() {
             required
           />
         </label>
-        {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Granting…" : "Grant admin"}
+        {(grant.error || revoke.error) && (
+          <p className="error">
+            {grant.error instanceof Error ? grant.error.message : revoke.error instanceof Error ? revoke.error.message : ""}
+          </p>
+        )}
+        <button type="submit" disabled={grant.isPending}>
+          {grant.isPending ? "Granting…" : "Grant admin"}
         </button>
       </form>
     </div>

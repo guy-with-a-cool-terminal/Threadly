@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createResendAccount,
   listResendAccounts,
@@ -246,17 +247,12 @@ function AccountCard({ account, onChanged }: { account: ResendAccountSummary; on
 }
 
 export function AdminResendAccountsPage() {
-  const [accounts, setAccounts] = useState<ResendAccountSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  function reload() {
-    listResendAccounts().then((data) => {
-      setAccounts(data);
-      setLoaded(true);
-    });
-  }
-
-  useEffect(reload, []);
+  const queryClient = useQueryClient();
+  const { data: accounts, isSuccess } = useQuery({
+    queryKey: ["resend-accounts"],
+    queryFn: listResendAccounts,
+  });
+  const reload = () => queryClient.invalidateQueries({ queryKey: ["resend-accounts"] });
 
   return (
     <div className="page">
@@ -273,10 +269,10 @@ export function AdminResendAccountsPage() {
         Receiving per domain - Resend only exposes that as a dashboard toggle.
       </p>
 
-      {loaded && accounts.length === 0 && <p className="muted">No Resend accounts yet - add the first one below.</p>}
+      {isSuccess && accounts.length === 0 && <p className="muted">No Resend accounts yet - add the first one below.</p>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem" }}>
-        {accounts.map((a) => (
+        {accounts?.map((a) => (
           <AccountCard key={a.label} account={a} onChanged={reload} />
         ))}
       </div>

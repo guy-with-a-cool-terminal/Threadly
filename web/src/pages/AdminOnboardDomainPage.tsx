@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 import {
   addDomain,
@@ -12,24 +13,25 @@ import type { Client } from "../lib/types";
 
 const STEPS = ["Client", "Resend account", "Domain"] as const;
 
+async function fetchClients(): Promise<Client[]> {
+  const { data, error } = await supabase.from("clients").select("*").order("name");
+  if (error) throw error;
+  return (data as Client[]) ?? [];
+}
+
 function ApiKeyInlineForm({ account, onSaved }: { account: ResendAccountSummary; onSaved: () => void }) {
   const [value, setValue] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await setResendApiKey(account.label, value.trim());
+  const save = useMutation({
+    mutationFn: () => setResendApiKey(account.label, value.trim()),
+    onSuccess: () => {
       setValue("");
       onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+    },
+  });
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    save.mutate();
   }
 
   return (
@@ -47,11 +49,11 @@ function ApiKeyInlineForm({ account, onSaved }: { account: ResendAccountSummary;
           onChange={(e) => setValue(e.target.value)}
           required
         />
-        <button type="submit" disabled={busy}>
-          {busy ? "Checking…" : "Save & continue"}
+        <button type="submit" disabled={save.isPending}>
+          {save.isPending ? "Checking…" : "Save & continue"}
         </button>
       </form>
-      {error && <p className="error">{error}</p>}
+      {save.error && <p className="error">{save.error instanceof Error ? save.error.message : String(save.error)}</p>}
     </div>
   );
 }
@@ -63,91 +65,67 @@ function ApiKeyInlineForm({ account, onSaved }: { account: ResendAccountSummary;
 // instead of one task. Creating a mailbox afterwards is deliberately a
 // separate, much simpler page - see AdminProvisionPage.
 export function AdminOnboardDomainPage() {
+  const queryClient = useQueryClient();
   const [step, setStep] = useState(0);
 
-  const [clients, setClients] = useState<Client[]>([]);
+  const { data: clients } = useQuery({ queryKey: ["clients"], queryFn: fetchClients });
   const [clientMode, setClientMode] = useState<"new" | "existing">("new");
   const [clientId, setClientId] = useState("");
   const [newClientName, setNewClientName] = useState("");
 
-  const [resendAccounts, setResendAccounts] = useState<ResendAccountSummary[]>([]);
+  const { data: resendAccounts } = useQuery({ queryKey: ["resend-accounts"], queryFn: listResendAccounts });
   const [accountLabel, setAccountLabel] = useState("");
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [newAccountLabel, setNewAccountLabel] = useState("");
   const [newAccountDisplayName, setNewAccountDisplayName] = useState("");
-  const [accountBusy, setAccountBusy] = useState(false);
-  const [accountError, setAccountError] = useState<string | null>(null);
 
   const [domainName, setDomainName] = useState("");
-  const [domainBusy, setDomainBusy] = useState(false);
-  const [domainError, setDomainError] = useState<string | null>(null);
-  const [result, setResult] = useState<Awaited<ReturnType<typeof addDomain>> | null>(null);
-
-  function reloadClients() {
-    supabase
-      .from("clients")
-      .select("*")
-      .order("name")
-      .then(({ data }) => setClients((data as Client[]) ?? []));
-  }
-
-  function reloadAccounts() {
-    listResendAccounts().then((accounts) => {
-      setResendAccounts(accounts);
-      setAccountLabel((current) => current || accounts.find((a) => a.has_api_key)?.label || accounts[0]?.label || "");
-    });
-  }
 
   useEffect(() => {
-    reloadClients();
-    reloadAccounts();
-  }, []);
+    if (!accountLabel && resendAccounts?.length) {
+      setAccountLabel(resendAccounts.find((a) => a.has_api_key)?.label ?? resendAccounts[0].label);
+    }
+  }, [resendAccounts, accountLabel]);
 
-  const selectedAccount = resendAccounts.find((a) => a.label === accountLabel);
+  const selectedAccount = resendAccounts?.find((a) => a.label === accountLabel);
   const accountReady = Boolean(selectedAccount?.has_api_key) && !creatingAccount;
 
-  async function handleCreateAccount() {
-    setAccountBusy(true);
-    setAccountError(null);
-    try {
+  const reloadAccounts = () => queryClient.invalidateQueries({ queryKey: ["resend-accounts"] });
+
+  const createAccount = useMutation({
+    mutationFn: async () => {
       const label = newAccountLabel.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
       await createResendAccount({ label, displayName: newAccountDisplayName.trim() });
+      return label;
+    },
+    onSuccess: (label) => {
       setAccountLabel(label);
       setCreatingAccount(false);
       setNewAccountLabel("");
       setNewAccountDisplayName("");
       reloadAccounts();
-    } catch (err) {
-      setAccountError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAccountBusy(false);
-    }
-  }
+    },
+  });
 
-  async function handleFinish() {
-    setDomainBusy(true);
-    setDomainError(null);
-    try {
-      const data = await addDomain({
+  const finish = useMutation({
+    mutationFn: () =>
+      addDomain({
         clientId: clientMode === "existing" ? clientId : undefined,
         newClientName: clientMode === "new" ? newClientName.trim() : undefined,
         domainName: domainName.toLowerCase().trim(),
         resendAccountLabel: accountLabel,
-      });
-      setResult(data);
-    } catch (err) {
-      setDomainError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDomainBusy(false);
-    }
-  }
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["domains"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
+    },
+  });
 
   function reset() {
     setStep(0);
     setDomainName("");
-    setResult(null);
-    setDomainError(null);
-    reloadClients();
+    finish.reset();
   }
 
   return (
@@ -157,17 +135,17 @@ export function AdminOnboardDomainPage() {
       </Link>
       <h1>Add a domain</h1>
 
-      {result ? (
+      {finish.data ? (
         <div className="provision-result">
           <h2>
-            ✅ {domainName} {result.alreadyRegistered ? "imported" : "registered"}
+            ✅ {domainName} {finish.data.alreadyRegistered ? "imported" : "registered"}
           </h2>
           <p>
-            Domain status: <strong>{result.domain.status}</strong>
-            {result.domain.status !== "verified" && " (add the DNS records below before mail will flow)."}
+            Domain status: <strong>{finish.data.domain.status}</strong>
+            {finish.data.domain.status !== "verified" && " (add the DNS records below before mail will flow)."}
           </p>
-          {Boolean(result.domain.dns_records) && (
-            <pre className="dns-records">{JSON.stringify(result.domain.dns_records, null, 2)}</pre>
+          {Boolean(finish.data.domain.dns_records) && (
+            <pre className="dns-records">{JSON.stringify(finish.data.domain.dns_records, null, 2)}</pre>
           )}
           <p className="muted" style={{ marginTop: "0.75rem" }}>
             These records only cover sending. To receive mail on this domain, open it directly on
@@ -197,7 +175,7 @@ export function AdminOnboardDomainPage() {
 
           {step === 0 && (
             <div className="provision-form">
-              {clients.length > 0 && (
+              {Boolean(clients?.length) && (
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <button
                     type="button"
@@ -231,7 +209,7 @@ export function AdminOnboardDomainPage() {
                   Client
                   <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
                     <option value="">Select a client…</option>
-                    {clients.map((c) => (
+                    {clients?.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
@@ -252,9 +230,9 @@ export function AdminOnboardDomainPage() {
 
           {step === 1 && (
             <div className="provision-form">
-              {resendAccounts.length > 0 && (
+              {Boolean(resendAccounts?.length) && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  {resendAccounts.map((a) => (
+                  {resendAccounts?.map((a) => (
                     <label key={a.label} style={{ display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 400 }}>
                       <input
                         type="radio"
@@ -291,13 +269,17 @@ export function AdminOnboardDomainPage() {
                     value={newAccountDisplayName}
                     onChange={(e) => setNewAccountDisplayName(e.target.value)}
                   />
-                  {accountError && <p className="error">{accountError}</p>}
+                  {createAccount.error && (
+                    <p className="error">
+                      {createAccount.error instanceof Error ? createAccount.error.message : String(createAccount.error)}
+                    </p>
+                  )}
                   <button
                     type="button"
-                    onClick={handleCreateAccount}
-                    disabled={accountBusy || !newAccountLabel.trim() || !newAccountDisplayName.trim()}
+                    onClick={() => createAccount.mutate()}
+                    disabled={createAccount.isPending || !newAccountLabel.trim() || !newAccountDisplayName.trim()}
                   >
-                    {accountBusy ? "Creating…" : "Create account"}
+                    {createAccount.isPending ? "Creating…" : "Create account"}
                   </button>
                 </div>
               )}
@@ -329,13 +311,15 @@ export function AdminOnboardDomainPage() {
                   required
                 />
               </label>
-              {domainError && <p className="error">{domainError}</p>}
+              {finish.error && (
+                <p className="error">{finish.error instanceof Error ? finish.error.message : String(finish.error)}</p>
+              )}
               <div className="app-header-actions" style={{ marginLeft: 0 }}>
                 <button type="button" onClick={() => setStep(1)} style={{ background: "transparent", color: "var(--text)", borderColor: "var(--border)" }}>
                   Back
                 </button>
-                <button type="button" onClick={handleFinish} disabled={domainBusy || !domainName.trim()}>
-                  {domainBusy ? "Registering…" : "Finish"}
+                <button type="button" onClick={() => finish.mutate()} disabled={finish.isPending || !domainName.trim()}>
+                  {finish.isPending ? "Registering…" : "Finish"}
                 </button>
               </div>
             </div>
