@@ -1,6 +1,6 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MailOpen } from "lucide-react";
+import { MailOpen, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { ThreadList } from "../components/ThreadList";
@@ -92,7 +92,7 @@ export function InboxPage() {
 
   return (
     <InboxShell mailboxAddress={mailbox.address} mailboxId={mailbox.id} basePath={basePath} activeFolder={composing ? undefined : folder}>
-      <div className="mail-split">
+      <div className={`mail-split ${composing || threadIdParam ? "has-selection" : ""}`}>
         <div className="mail-split-list">
           {folder === "sent" ? (
             <SentList mailboxId={mailbox.id} basePath={basePath} selectedThreadId={threadIdParam ?? undefined} />
@@ -109,13 +109,19 @@ export function InboxPage() {
         </div>
         <div className="mail-split-detail">
           {composing ? (
-            <Composer
-              mailboxId={mailbox.id}
-              draft={draftIdParam ? (editingDraft ?? undefined) : undefined}
-              signature={mailbox.signature}
-              onSent={closeComposer}
-              onDiscard={closeComposer}
-            />
+            <>
+              <button type="button" className="mail-back-link" onClick={closeComposer}>
+                <ArrowLeft size={16} />
+                Back
+              </button>
+              <Composer
+                mailboxId={mailbox.id}
+                draft={draftIdParam ? (editingDraft ?? undefined) : undefined}
+                signature={mailbox.signature}
+                onSent={closeComposer}
+                onDiscard={closeComposer}
+              />
+            </>
           ) : threadIdParam ? (
             <ThreadDetail
               mailboxId={mailbox.id}

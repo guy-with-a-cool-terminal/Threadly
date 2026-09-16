@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Mail, MailOpen, Archive, ArchiveRestore, Ban, ShieldCheck, Star, Trash2, RotateCcw } from "lucide-react";
+import { Mail, MailOpen, Archive, ArchiveRestore, Ban, ShieldCheck, Star, Trash2, RotateCcw, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { deleteThreadForever } from "../lib/api";
 import { MessageView } from "./MessageView";
@@ -141,6 +141,10 @@ export function ThreadDetail({
 
   return (
     <div className="thread-detail">
+      <button type="button" className="mail-back-link" onClick={onClosed}>
+        <ArrowLeft size={16} />
+        Back
+      </button>
       <div className="thread-toolbar">
         <button
           type="button"
