@@ -18,3 +18,15 @@ createRoot(document.getElementById("root")!).render(
     </ErrorBoundary>
   </StrictMode>,
 );
+
+// Register the service worker so the app satisfies PWA installability
+// criteria (Add to Home Screen / standalone window). The worker itself is
+// intentionally minimal, no offline caching, so registration failures are
+// swallowed and never affect the app.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // Ignore registration failures, the app works fine without it.
+    });
+  });
+}

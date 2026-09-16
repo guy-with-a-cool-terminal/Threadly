@@ -10,6 +10,7 @@ import { AdminProvisionPage } from "./pages/AdminProvisionPage";
 import { AdminOnboardDomainPage } from "./pages/AdminOnboardDomainPage";
 import { AdminResendAccountsPage } from "./pages/AdminResendAccountsPage";
 import { AdminAdminsPage } from "./pages/AdminAdminsPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { MissingConfigScreen } from "./pages/MissingConfigScreen";
 
 // Where "/" and any unmatched path should land, based on what kind of
@@ -40,6 +41,7 @@ export function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/inbox/:threadId" element={<ThreadPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
         <Route element={<ProtectedRoute requireAdmin />}>

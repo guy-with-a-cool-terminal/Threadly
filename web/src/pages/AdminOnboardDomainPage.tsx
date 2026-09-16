@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import {
   addDomain,
@@ -137,8 +138,9 @@ export function AdminOnboardDomainPage() {
 
       {finish.data ? (
         <div className="provision-result">
-          <h2>
-            ✅ {domainName} {finish.data.alreadyRegistered ? "imported" : "registered"}
+          <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <CheckCircle2 size={20} color="var(--accent)" />
+            {domainName} {finish.data.alreadyRegistered ? "imported" : "registered"}
           </h2>
           <p>
             Domain status: <strong>{finish.data.domain.status}</strong>

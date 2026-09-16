@@ -1,8 +1,19 @@
 import DOMPurify from "dompurify";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  FileText,
+  FileSpreadsheet,
+  FileArchive,
+  Paperclip,
+  Image as ImageIcon,
+  Printer,
+  Download,
+  Code,
+} from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { splitQuotedHtml, splitQuotedText } from "../lib/quoteSplit";
+import { formatBytes } from "../lib/format";
 import { Avatar } from "./Avatar";
 import type { Attachment, Message } from "../lib/types";
 
@@ -19,6 +30,43 @@ function snippetFor(message: Message): string {
   const raw = message.body_text || (message.body_html ? message.body_html.replace(/<[^>]+>/g, " ") : "");
   const collapsed = raw.replace(/\s+/g, " ").trim();
   return collapsed.length > 100 ? `${collapsed.slice(0, 100)}…` : collapsed;
+}
+
+// Reconstructs a plain-text, header-plus-body view of a message for
+// download/view-source. Not the original raw MIME (we only ever stored the
+// parsed fields, never the wire bytes), but an honest, readable
+// approximation built from exactly what's in the database.
+function buildRawSource(message: Message): string {
+  const lines = [
+    `From: ${message.from_address}`,
+    `To: ${message.to_addresses.join(", ")}`,
+  ];
+  if (message.cc_addresses?.length) lines.push(`Cc: ${message.cc_addresses.join(", ")}`);
+  lines.push(`Subject: ${message.subject ?? "(no subject)"}`);
+  lines.push(`Date: ${new Date(message.created_at).toUTCString()}`);
+  if (message.message_id_header) lines.push(`Message-ID: ${message.message_id_header}`);
+  if (message.in_reply_to_header) lines.push(`In-Reply-To: ${message.in_reply_to_header}`);
+  if (message.references_header) lines.push(`References: ${message.references_header}`);
+  lines.push("");
+  lines.push(message.body_text ?? message.body_html?.replace(/<[^>]+>/g, " ") ?? "");
+  return lines.join("\n");
+}
+
+function downloadMessage(message: Message) {
+  const blob = new Blob([buildRawSource(message)], { type: "message/rfc822" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${(message.subject || "message").replace(/[^a-z0-9-_]+/gi, "_")}.eml`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function viewSource(message: Message) {
+  const blob = new Blob([buildRawSource(message)], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function MessageView({
@@ -71,6 +119,30 @@ export function MessageView({
         <span className="message-date muted">{new Date(message.created_at).toLocaleString()}</span>
       </button>
 
+      <div className="message-actions no-print">
+        <button type="button" className="icon-button" title="Print" aria-label="Print" onClick={() => window.print()}>
+          <Printer size={16} />
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          title="Download"
+          aria-label="Download"
+          onClick={() => downloadMessage(message)}
+        >
+          <Download size={16} />
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          title="View source"
+          aria-label="View source"
+          onClick={() => viewSource(message)}
+        >
+          <Code size={16} />
+        </button>
+      </div>
+
       {isHtml ? (
         // Email HTML is untrusted content from the open internet - always
         // sanitize before rendering.
@@ -81,7 +153,7 @@ export function MessageView({
 
       {quoted && (
         <div className="quote-block">
-          <button type="button" className="quote-toggle" onClick={() => setShowQuoted((v) => !v)}>
+          <button type="button" className="quote-toggle no-print" onClick={() => setShowQuoted((v) => !v)}>
             {showQuoted ? "Hide quoted text" : "•••"}
           </button>
           {showQuoted && (
@@ -108,20 +180,13 @@ export function MessageView({
   );
 }
 
-function formatBytes(bytes: number | null): string {
-  if (!bytes) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function iconFor(contentType: string | null, fileName: string): string {
+function iconFor(contentType: string | null, fileName: string) {
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
-  if (contentType === "application/pdf" || ext === "pdf") return "📄";
-  if (["doc", "docx"].includes(ext)) return "📝";
-  if (["xls", "xlsx", "csv"].includes(ext)) return "📊";
-  if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return "🗜️";
-  return "📎";
+  if (contentType === "application/pdf" || ext === "pdf") return FileText;
+  if (["doc", "docx"].includes(ext)) return FileText;
+  if (["xls", "xlsx", "csv"].includes(ext)) return FileSpreadsheet;
+  if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return FileArchive;
+  return Paperclip;
 }
 
 async function fetchSignedUrl(storagePath: string): Promise<string | null> {
@@ -151,16 +216,22 @@ function AttachmentCard({ attachment }: { attachment: Attachment }) {
         {signedUrl ? (
           <img src={signedUrl} alt={attachment.file_name} />
         ) : (
-          <span className="attachment-thumb-placeholder">🖼️</span>
+          <span className="attachment-thumb-placeholder">
+            <ImageIcon size={22} />
+          </span>
         )}
         <span className="attachment-thumb-name">{attachment.file_name}</span>
       </button>
     );
   }
 
+  const Icon = iconFor(attachment.content_type, attachment.file_name);
+
   return (
     <button type="button" className="attachment-card" onClick={open}>
-      <span className="attachment-card-icon">{iconFor(attachment.content_type, attachment.file_name)}</span>
+      <span className="attachment-card-icon">
+        <Icon size={22} />
+      </span>
       <span className="attachment-card-main">
         <span className="attachment-card-name">{attachment.file_name}</span>
         {Boolean(attachment.size_bytes) && (

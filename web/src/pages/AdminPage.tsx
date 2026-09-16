@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Pencil } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { Logo } from "../components/Logo";
@@ -49,7 +50,7 @@ function FeeCell({ mailbox }: { mailbox: Mailbox }) {
         style={{ background: "transparent", color: "var(--text)", border: "none", padding: 0, cursor: "pointer" }}
         title="Edit fee"
       >
-        {mailbox.monthly_fee_kes} <span className="muted">✎</span>
+        {mailbox.monthly_fee_kes} <Pencil className="muted" size={12} style={{ verticalAlign: "-1px" }} />
       </button>
     );
   }

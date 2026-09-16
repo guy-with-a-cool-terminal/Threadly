@@ -140,6 +140,16 @@ export async function deleteThreadForever(threadId: string) {
   return invokeFunction<{ ok: true }>("delete-thread-forever", { threadId });
 }
 
+// Updates the caller's own mailbox signature via a security definer
+// function, rather than a direct table update - see
+// supabase/migrations/20260916000001_mailbox_signature.sql for why (a
+// direct RLS update policy on mailboxes can't be scoped to just this one
+// column).
+export async function updateMySignature(signature: string | null) {
+  const { error } = await supabase.rpc("update_my_signature", { new_signature: signature });
+  if (error) throw error;
+}
+
 // Reads a file picked in a <input type="file"> into base64, for attaching
 // to an outbound send.
 export function fileToBase64(file: File): Promise<string> {

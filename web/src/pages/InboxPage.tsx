@@ -1,5 +1,6 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { MailOpen } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { ThreadList } from "../components/ThreadList";
@@ -111,6 +112,7 @@ export function InboxPage() {
             <Composer
               mailboxId={mailbox.id}
               draft={draftIdParam ? (editingDraft ?? undefined) : undefined}
+              signature={mailbox.signature}
               onSent={closeComposer}
               onDiscard={closeComposer}
             />
@@ -123,7 +125,7 @@ export function InboxPage() {
             />
           ) : (
             <div className="mail-empty-state">
-              <span className="mail-empty-icon">✉️</span>
+              <MailOpen className="mail-empty-icon" size={40} strokeWidth={1.5} />
               <p>No mail selected</p>
             </div>
           )}

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check } from "lucide-react";
 import {
   createResendAccount,
   listResendAccounts,
@@ -112,8 +113,9 @@ function KeyForm({
         }}
         required
       />
-      <button type="submit" disabled={submitting}>
-        {submitting ? "Checking with Resend…" : justSaved ? "Saved ✓" : buttonLabel}
+      <button type="submit" disabled={submitting} className="icon-label-button">
+        {justSaved && <Check size={15} />}
+        {submitting ? "Checking with Resend…" : justSaved ? "Saved" : buttonLabel}
       </button>
       {error && <p className="error">{error}</p>}
     </form>

@@ -28,6 +28,7 @@ export interface Mailbox {
   status: "active" | "suspended_unpaid" | "suspended_admin";
   last_payment_date: string | null;
   late_fee_pending: boolean;
+  signature: string | null;
   created_at: string;
 }
 

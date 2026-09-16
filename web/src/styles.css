@@ -88,9 +88,9 @@ a {
 }
 
 .page {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem 1.5rem 3rem;
+  padding: 2rem 2.5rem 3rem;
 }
 
 .page h1 {
@@ -303,7 +303,14 @@ button:disabled {
   border-top: 1px solid var(--border);
 }
 
+.thread-list li {
+  display: flex;
+  align-items: center;
+}
+
 .thread-list a {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.9rem;
@@ -367,6 +374,29 @@ button:disabled {
   flex-shrink: 0;
 }
 
+.thread-checkbox {
+  display: flex;
+  align-items: center;
+  padding-left: 1rem;
+  flex-shrink: 0;
+}
+
+.thread-checkbox input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
 .unread-dot {
   width: 8px;
   height: 8px;
@@ -391,6 +421,8 @@ button:disabled {
 
 .star-icon {
   color: var(--warning);
+  margin-left: 0.35rem;
+  vertical-align: -2px;
 }
 
 .back-link {
@@ -430,6 +462,43 @@ button:disabled {
 
 .thread-toolbar button:hover:not(:disabled) {
   background: var(--surface-2);
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.icon-button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.icon-button-active {
+  color: var(--warning);
+  border-color: var(--warning-soft);
+  background: var(--warning-soft);
+}
+
+.icon-button-danger:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+  background: var(--danger-soft);
+}
+
+.icon-label-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .message {
@@ -490,11 +559,60 @@ button:disabled {
   background: transparent;
   border: none;
   padding: 0;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   color: var(--text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.message-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.message-actions .icon-button {
+  width: 30px;
+  height: 30px;
+}
+
+@media print {
+  .no-print,
+  .app-header,
+  .inbox-sidebar,
+  .mail-split-list,
+  .thread-toolbar,
+  .composer,
+  .message-row-collapsed {
+    display: none !important;
+  }
+
+  /* Printing on paper should never use the dark theme's colors, whichever
+     theme is active on screen - forced light regardless of data-theme.
+     The wildcard is needed because several elements (h2, .muted, etc.)
+     set their own unconditional color that would otherwise still win
+     over a color set only on an ancestor. */
+  body,
+  .page,
+  .mail-split-detail,
+  .message {
+    background: white !important;
+  }
+
+  .mail-split-detail * {
+    color: black !important;
+  }
+
+  .mail-split-detail {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .message {
+    border: 1px solid #ccc !important;
+  }
 }
 
 .message-header-main {
@@ -617,6 +735,7 @@ button:disabled {
   gap: 0.35rem;
   width: 120px;
   background: var(--bg);
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.4rem;
@@ -963,9 +1082,11 @@ button:disabled {
 }
 
 .compose-button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   width: 100%;
-  text-align: center;
   padding: 0.7rem 1rem;
   border-radius: 999px;
   background: var(--accent);
@@ -1014,7 +1135,7 @@ button:disabled {
 }
 
 .folder-icon {
-  font-size: 0.95em;
+  flex-shrink: 0;
 }
 
 .folder-label {
@@ -1034,6 +1155,13 @@ button:disabled {
 
 .folder-nav a.folder-active .folder-badge {
   background: var(--accent-dark);
+}
+
+.storage-footer {
+  margin-top: auto;
+  padding: 0.6rem 0.9rem 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
 }
 
 .inbox-main {

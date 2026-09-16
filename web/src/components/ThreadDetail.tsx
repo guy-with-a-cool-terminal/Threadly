@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Mail, MailOpen, Archive, ArchiveRestore, Ban, ShieldCheck, Star, Trash2, RotateCcw } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { deleteThreadForever } from "../lib/api";
 import { MessageView } from "./MessageView";
@@ -141,29 +142,52 @@ export function ThreadDetail({
   return (
     <div className="thread-detail">
       <div className="thread-toolbar">
-        <button type="button" onClick={() => patchThread.mutate({ is_read: !thread.is_read })}>
-          {thread.is_read ? "Mark unread" : "Mark read"}
+        <button
+          type="button"
+          className="icon-button"
+          title={thread.is_read ? "Mark unread" : "Mark read"}
+          aria-label={thread.is_read ? "Mark unread" : "Mark read"}
+          onClick={() => patchThread.mutate({ is_read: !thread.is_read })}
+        >
+          {thread.is_read ? <Mail size={18} /> : <MailOpen size={18} />}
         </button>
         <button
           type="button"
+          className="icon-button"
+          title={thread.archived_at ? "Move to inbox" : "Archive"}
+          aria-label={thread.archived_at ? "Move to inbox" : "Archive"}
           onClick={() => patchThread.mutate({ archived_at: thread.archived_at ? null : new Date().toISOString() })}
         >
-          {thread.archived_at ? "Move to inbox" : "Archive"}
-        </button>
-        <button type="button" onClick={() => patchThread.mutate({ is_spam: !thread.is_spam })}>
-          {thread.is_spam ? "Not spam" : "Mark as spam"}
+          {thread.archived_at ? <ArchiveRestore size={18} /> : <Archive size={18} />}
         </button>
         <button
           type="button"
-          onClick={() => patchThread.mutate({ starred: !thread.starred })}
-          style={thread.starred ? undefined : { background: "transparent", color: "var(--text)", borderColor: "var(--border)" }}
+          className="icon-button"
+          title={thread.is_spam ? "Not spam" : "Mark as spam"}
+          aria-label={thread.is_spam ? "Not spam" : "Mark as spam"}
+          onClick={() => patchThread.mutate({ is_spam: !thread.is_spam })}
         >
-          {thread.starred ? "★ Starred" : "☆ Star"}
+          {thread.is_spam ? <ShieldCheck size={18} /> : <Ban size={18} />}
+        </button>
+        <button
+          type="button"
+          className={`icon-button ${thread.starred ? "icon-button-active" : ""}`}
+          title={thread.starred ? "Unstar" : "Star"}
+          aria-label={thread.starred ? "Unstar" : "Star"}
+          onClick={() => patchThread.mutate({ starred: !thread.starred })}
+        >
+          <Star size={18} fill={thread.starred ? "currentColor" : "none"} />
         </button>
         {thread.deleted_at ? (
           <>
-            <button type="button" onClick={() => patchThread.mutate({ deleted_at: null })}>
-              Restore
+            <button
+              type="button"
+              className="icon-button"
+              title="Restore"
+              aria-label="Restore"
+              onClick={() => patchThread.mutate({ deleted_at: null })}
+            >
+              <RotateCcw size={18} />
             </button>
             <button
               type="button"
@@ -171,16 +195,19 @@ export function ThreadDetail({
               disabled={deleteForever.isPending}
               style={{ background: "transparent", color: "var(--danger)", borderColor: "var(--danger-soft)" }}
             >
+              <Trash2 size={15} style={{ marginRight: "0.4rem", verticalAlign: "-3px" }} />
               {deleteForever.isPending ? "Deleting…" : "Delete forever"}
             </button>
           </>
         ) : (
           <button
             type="button"
+            className="icon-button icon-button-danger"
+            title="Move to trash"
+            aria-label="Move to trash"
             onClick={() => patchThread.mutate({ deleted_at: new Date().toISOString() })}
-            style={{ background: "transparent", color: "var(--danger)", borderColor: "var(--danger-soft)" }}
           >
-            Move to trash
+            <Trash2 size={18} />
           </button>
         )}
       </div>

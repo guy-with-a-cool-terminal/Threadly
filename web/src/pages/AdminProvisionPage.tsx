@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { provisionMailbox } from "../lib/api";
 import type { Domain } from "../lib/types";
@@ -116,7 +117,10 @@ export function AdminProvisionPage() {
 
       {provision.data && (
         <div className="provision-result">
-          <h2>✅ {provision.data.address} created</h2>
+          <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <CheckCircle2 size={20} color="var(--accent)" />
+            {provision.data.address} created
+          </h2>
           <p>Give the client this address and the password above to log in.</p>
         </div>
       )}
