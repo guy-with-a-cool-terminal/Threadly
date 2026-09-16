@@ -208,7 +208,11 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  await admin.from("threads").update({ last_message_at: new Date().toISOString() }).eq("id", threadId);
+  // Sending into a thread means the owner has seen and handled it.
+  await admin
+    .from("threads")
+    .update({ last_message_at: new Date().toISOString(), is_read: true })
+    .eq("id", threadId);
 
   for (const a of body.attachments ?? []) {
     try {

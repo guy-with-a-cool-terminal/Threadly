@@ -15,7 +15,15 @@ async function fetchSent(mailboxId: string): Promise<Message[]> {
   return (data as Message[]) ?? [];
 }
 
-export function SentList({ mailboxId, basePath }: { mailboxId: string; basePath: string }) {
+export function SentList({
+  mailboxId,
+  basePath,
+  selectedThreadId,
+}: {
+  mailboxId: string;
+  basePath: string;
+  selectedThreadId?: string;
+}) {
   const { data: messages, isLoading } = useQuery({
     queryKey: ["sent-messages", mailboxId],
     queryFn: () => fetchSent(mailboxId),
@@ -30,7 +38,10 @@ export function SentList({ mailboxId, basePath }: { mailboxId: string; basePath:
         const recipient = m.to_addresses[0] ?? "?";
         return (
           <li key={m.id}>
-            <Link to={`${basePath}/${m.thread_id}`}>
+            <Link
+              to={`${basePath}?folder=sent&thread=${m.thread_id}`}
+              className={m.thread_id === selectedThreadId ? "thread-selected" : ""}
+            >
               <Avatar label={recipient} />
               <span className="thread-row-main">
                 <span className="thread-row-top">

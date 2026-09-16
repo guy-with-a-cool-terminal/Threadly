@@ -22,6 +22,48 @@
     -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Helvetica, Arial, sans-serif;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f8f6;
+  --surface: #ffffff;
+  --surface-2: #eef1ee;
+  --border: #d9ddd8;
+  --text: #1b1d1b;
+  --muted: #6b6f68;
+  --accent: #2f6f4f;
+  --accent-dark: #23543c;
+  --accent-soft: rgba(47, 111, 79, 0.12);
+  --accent-border: rgba(47, 111, 79, 0.35);
+  --danger: #c8382a;
+  --danger-soft: rgba(200, 56, 42, 0.1);
+  --warning: #a06a12;
+  --warning-soft: rgba(160, 106, 18, 0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f7f8f6;
+    --surface: #ffffff;
+    --surface-2: #eef1ee;
+    --border: #d9ddd8;
+    --text: #1b1d1b;
+    --muted: #6b6f68;
+    --accent: #2f6f4f;
+    --accent-dark: #23543c;
+    --accent-soft: rgba(47, 111, 79, 0.12);
+    --accent-border: rgba(47, 111, 79, 0.35);
+    --danger: #c8382a;
+    --danger-soft: rgba(200, 56, 42, 0.1);
+    --warning: #a06a12;
+    --warning-soft: rgba(160, 106, 18, 0.12);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -214,6 +256,38 @@ button:disabled {
   color: var(--text);
 }
 
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.theme-toggle button {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0.65rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.theme-toggle button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+}
+
+.theme-toggle button.theme-toggle-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .thread-list {
   list-style: none;
   padding: 0;
@@ -293,6 +367,32 @@ button:disabled {
   flex-shrink: 0;
 }
 
+.unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.unread-dot-hidden {
+  background: transparent;
+}
+
+.thread-list a.thread-unread .thread-correspondent,
+.thread-list a.thread-unread .thread-subject {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.thread-list a.thread-selected {
+  background: var(--accent-soft);
+}
+
+.star-icon {
+  color: var(--warning);
+}
+
 .back-link {
   display: inline-block;
   margin-bottom: 1rem;
@@ -305,6 +405,31 @@ button:disabled {
   flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
+}
+
+.thread-detail {
+  min-width: 0;
+}
+
+.thread-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.thread-toolbar button {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+}
+
+.thread-toolbar button:hover:not(:disabled) {
+  background: var(--surface-2);
 }
 
 .message {
@@ -818,7 +943,7 @@ button:disabled {
 }
 
 .page-wide {
-  max-width: 1180px;
+  max-width: 1440px;
 }
 
 .inbox-layout {
@@ -866,10 +991,12 @@ button:disabled {
 }
 
 .folder-nav a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   color: var(--text);
   text-decoration: none;
-  padding: 0.55rem 0.9rem;
+  padding: 0.5rem 0.9rem;
   border-radius: 999px;
   font-weight: 500;
   font-size: 0.92rem;
@@ -886,7 +1013,76 @@ button:disabled {
   font-weight: 700;
 }
 
+.folder-icon {
+  font-size: 0.95em;
+}
+
+.folder-label {
+  flex: 1;
+}
+
+.folder-badge {
+  background: var(--accent);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-width: 1.3em;
+  text-align: center;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+}
+
+.folder-nav a.folder-active .folder-badge {
+  background: var(--accent-dark);
+}
+
 .inbox-main {
   flex: 1;
   min-width: 0;
+}
+
+.mail-split {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.mail-split-list {
+  width: 360px;
+  flex-shrink: 0;
+}
+
+.mail-split-detail {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.mail-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 320px;
+  color: var(--muted);
+}
+
+.mail-empty-icon {
+  font-size: 2.5rem;
+  opacity: 0.5;
+}
+
+@media (max-width: 960px) {
+  .mail-split {
+    flex-direction: column;
+  }
+
+  .mail-split-list {
+    width: 100%;
+  }
 }

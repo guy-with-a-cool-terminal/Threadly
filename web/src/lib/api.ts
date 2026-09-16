@@ -136,6 +136,10 @@ export async function revokeAdmin(authUserId: string) {
   return invokeFunction<{ ok: true }>("manage-admins", { action: "revoke", authUserId });
 }
 
+export async function deleteThreadForever(threadId: string) {
+  return invokeFunction<{ ok: true }>("delete-thread-forever", { threadId });
+}
+
 // Reads a file picked in a <input type="file"> into base64, for attaching
 // to an outbound send.
 export function fileToBase64(file: File): Promise<string> {

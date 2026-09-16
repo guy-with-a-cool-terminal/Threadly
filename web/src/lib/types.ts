@@ -37,6 +37,11 @@ export interface Thread {
   subject: string | null;
   last_message_at: string | null;
   created_at: string;
+  is_read: boolean;
+  archived_at: string | null;
+  deleted_at: string | null;
+  is_spam: boolean;
+  starred: boolean;
 }
 
 export interface Message {

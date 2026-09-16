@@ -170,9 +170,14 @@ Deno.serve(async (req: Request) => {
       throw insertError;
     }
 
+    // New mail marks the thread unread and, if it had been archived,
+    // brings it back to the inbox - matching how every mailbox client
+    // treats "someone replied" as needing attention again. Deliberately
+    // not touching deleted_at/is_spam here: mail landing in a thread the
+    // owner trashed or marked spam shouldn't resurrect it on its own.
     await db
       .from("threads")
-      .update({ last_message_at: new Date().toISOString() })
+      .update({ last_message_at: new Date().toISOString(), is_read: false, archived_at: null })
       .eq("id", threadId);
 
     if (full.attachments.length > 0) {
