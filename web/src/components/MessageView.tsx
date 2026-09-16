@@ -1,6 +1,8 @@
 import DOMPurify from "dompurify";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
+import { splitQuotedHtml, splitQuotedText } from "../lib/quoteSplit";
 import { Avatar } from "./Avatar";
 import type { Attachment, Message } from "../lib/types";
 
@@ -28,6 +30,7 @@ export function MessageView({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const [showQuoted, setShowQuoted] = useState(false);
   const avatarLabel = message.direction === "inbound" ? message.from_address : message.to_addresses[0] ?? "?";
   const sender = message.direction === "inbound" ? message.from_address : "You";
 
@@ -49,6 +52,11 @@ export function MessageView({
     );
   }
 
+  const isHtml = Boolean(message.body_html);
+  const { main, quoted } = isHtml
+    ? splitQuotedHtml(message.body_html as string)
+    : splitQuotedText(message.body_text ?? "");
+
   return (
     <div className={`message message-${message.direction}`}>
       <button type="button" className="message-header" onClick={onToggle}>
@@ -62,20 +70,37 @@ export function MessageView({
         </span>
         <span className="message-date muted">{new Date(message.created_at).toLocaleString()}</span>
       </button>
-      {message.body_html ? (
+
+      {isHtml ? (
         // Email HTML is untrusted content from the open internet - always
         // sanitize before rendering.
-        <div
-          className="message-body"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.body_html) }}
-        />
+        <div className="message-body" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(main) }} />
       ) : (
-        <pre className="message-body message-body-text">{message.body_text}</pre>
+        <pre className="message-body message-body-text">{main}</pre>
       )}
+
+      {quoted && (
+        <div className="quote-block">
+          <button type="button" className="quote-toggle" onClick={() => setShowQuoted((v) => !v)}>
+            {showQuoted ? "Hide quoted text" : "•••"}
+          </button>
+          {showQuoted && (
+            isHtml ? (
+              <div
+                className="message-body quoted-content"
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(quoted) }}
+              />
+            ) : (
+              <pre className="message-body message-body-text quoted-content">{quoted}</pre>
+            )
+          )}
+        </div>
+      )}
+
       {Boolean(attachments?.length) && (
         <div className="attachments">
           {attachments?.map((a) => (
-            <AttachmentLink key={a.id} attachment={a} />
+            <AttachmentCard key={a.id} attachment={a} />
           ))}
         </div>
       )}
@@ -83,19 +108,65 @@ export function MessageView({
   );
 }
 
-function AttachmentLink({ attachment }: { attachment: Attachment }) {
+function formatBytes(bytes: number | null): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function iconFor(contentType: string | null, fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  if (contentType === "application/pdf" || ext === "pdf") return "📄";
+  if (["doc", "docx"].includes(ext)) return "📝";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "📊";
+  if (["zip", "rar", "7z", "tar", "gz"].includes(ext)) return "🗜️";
+  return "📎";
+}
+
+async function fetchSignedUrl(storagePath: string): Promise<string | null> {
+  const { data, error } = await supabase.storage.from("attachments").createSignedUrl(storagePath, 3600);
+  if (error) return null;
+  return data?.signedUrl ?? null;
+}
+
+function AttachmentCard({ attachment }: { attachment: Attachment }) {
+  const isImage = attachment.content_type?.startsWith("image/") ?? false;
+
+  const { data: signedUrl } = useQuery({
+    queryKey: ["attachment-url", attachment.id],
+    queryFn: () => fetchSignedUrl(attachment.storage_path),
+    enabled: isImage,
+    staleTime: 30 * 60_000,
+  });
+
   async function open() {
-    const { data, error } = await supabase.storage
-      .from("attachments")
-      .createSignedUrl(attachment.storage_path, 60);
-    if (!error && data?.signedUrl) {
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-    }
+    const url = signedUrl ?? (await fetchSignedUrl(attachment.storage_path));
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  if (isImage) {
+    return (
+      <button type="button" className="attachment-thumb" onClick={open} title={attachment.file_name}>
+        {signedUrl ? (
+          <img src={signedUrl} alt={attachment.file_name} />
+        ) : (
+          <span className="attachment-thumb-placeholder">🖼️</span>
+        )}
+        <span className="attachment-thumb-name">{attachment.file_name}</span>
+      </button>
+    );
   }
 
   return (
-    <button type="button" className="attachment-chip" onClick={open}>
-      📎 {attachment.file_name}
+    <button type="button" className="attachment-card" onClick={open}>
+      <span className="attachment-card-icon">{iconFor(attachment.content_type, attachment.file_name)}</span>
+      <span className="attachment-card-main">
+        <span className="attachment-card-name">{attachment.file_name}</span>
+        {Boolean(attachment.size_bytes) && (
+          <span className="attachment-card-size muted">{formatBytes(attachment.size_bytes)}</span>
+        )}
+      </span>
     </button>
   );
 }

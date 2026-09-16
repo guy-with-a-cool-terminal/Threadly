@@ -440,19 +440,118 @@ button:disabled {
 }
 
 .attachments {
-  margin-top: 0.6rem;
+  margin-top: 0.75rem;
   display: flex;
-  gap: 0.4rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
 }
 
-.attachment-chip {
+.attachment-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius-sm);
+  max-width: 220px;
+}
+
+.attachment-card:hover {
+  border-color: var(--accent-border);
+}
+
+.attachment-card-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.attachment-card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  text-align: left;
+}
+
+.attachment-card-name {
   font-size: 0.85em;
-  padding: 0.3rem 0.6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-card-size {
+  font-size: 0.75em;
+}
+
+.attachment-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 120px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem;
+}
+
+.attachment-thumb:hover {
+  border-color: var(--accent-border);
+}
+
+.attachment-thumb img {
+  width: 100%;
+  height: 84px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
+.attachment-thumb-placeholder {
+  width: 100%;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.attachment-thumb-name {
+  font-size: 0.78em;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-block {
+  margin-top: 0.4rem;
+}
+
+.quote-toggle {
+  background: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
   border-radius: 999px;
+  padding: 0.15rem 0.7rem;
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.quote-toggle:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.quoted-content {
+  margin-top: 0.5rem;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
 }
 
 .composer {
