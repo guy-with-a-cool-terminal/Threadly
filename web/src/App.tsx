@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { isSupabaseConfigured } from "./lib/supabaseClient";
 import { AuthProvider, useAuth } from "./lib/useAuth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { InstallPrompt } from "./components/InstallPrompt";
 import { LoginPage } from "./pages/LoginPage";
 import { InboxPage } from "./pages/InboxPage";
 import { ThreadPage } from "./pages/ThreadPage";
@@ -35,6 +36,7 @@ export function App() {
 
   return (
     <AuthProvider>
+      <InstallPrompt />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
 

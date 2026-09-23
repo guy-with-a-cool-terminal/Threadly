@@ -31,7 +31,7 @@ async function fetchDraftById(id: string): Promise<Draft | null> {
 export function InboxPage() {
   const { mailboxId: routeMailboxId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { mailbox: ownMailbox, isAdmin, loading: authLoading } = useAuth();
+  const { mailbox: ownMailbox, mailboxLookupFailed, isAdmin, loading: authLoading, retryMailboxLookup } = useAuth();
   const queryClient = useQueryClient();
 
   const folder = (searchParams.get("folder") as Folder | null) ?? "inbox";
@@ -57,6 +57,21 @@ export function InboxPage() {
   if (!lookupDone) return <div className="centered">Loading mailbox…</div>;
 
   if (!mailbox) {
+    // A lookup that failed (flaky connection, request timeout) is not the
+    // same as genuinely having no mailbox - conflating the two showed real
+    // mailbox owners a permanent "admin-only" message on a bad connection.
+    if (!routeMailboxId && mailboxLookupFailed) {
+      return (
+        <div className="centered">
+          <div className="login-card" style={{ maxWidth: 420 }}>
+            <p>Couldn't reach the server to load your mailbox. Check your connection and try again.</p>
+            <button type="button" onClick={retryMailboxLookup}>
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="centered">
         <div className="login-card" style={{ maxWidth: 420 }}>

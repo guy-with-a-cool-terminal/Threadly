@@ -398,6 +398,30 @@ button:disabled {
   border-radius: var(--radius-sm);
 }
 
+.install-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-border);
+  font-size: 0.9rem;
+}
+
+.install-banner p {
+  flex: 1;
+  margin: 0;
+}
+
+.install-banner-inline-icon {
+  vertical-align: -2px;
+  margin: 0 0.15rem;
+}
+
+.install-banner-dismiss {
+  flex-shrink: 0;
+}
+
 .unread-dot {
   width: 8px;
   height: 8px;
