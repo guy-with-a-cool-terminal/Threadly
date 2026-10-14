@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { Logo } from "../components/Logo";
+import { formatDate, nextMonthlyRenewal } from "../lib/format";
 import type { Client, Domain, Mailbox } from "../lib/types";
 
 async function fetchAdminOverview() {
@@ -122,6 +123,8 @@ export function AdminPage() {
               <th>Address</th>
               <th>Status</th>
               <th>Fee (KES)</th>
+              <th>Created</th>
+              <th>Next renewal</th>
               <th></th>
             </tr>
           </thead>
@@ -135,6 +138,8 @@ export function AdminPage() {
                 <td>
                   <FeeCell mailbox={m} />
                 </td>
+                <td>{formatDate(m.created_at)}</td>
+                <td>{m.status === "active" ? formatDate(nextMonthlyRenewal(m.created_at).toISOString()) : "-"}</td>
                 <td className="app-header-actions" style={{ marginLeft: 0, gap: "0.6rem" }}>
                   <Link to={`/admin/mailbox/${m.id}/inbox`}>View inbox</Link>
                   <button type="button" onClick={() => toggleStatus(m)} disabled={statusPending === m.id}>
@@ -155,6 +160,7 @@ export function AdminPage() {
               <th>Domain</th>
               <th>Resend account</th>
               <th>Status</th>
+              <th>Onboarded</th>
             </tr>
           </thead>
           <tbody>
@@ -163,6 +169,7 @@ export function AdminPage() {
                 <td>{d.domain_name}</td>
                 <td>{d.resend_account_label}</td>
                 <td>{d.status}</td>
+                <td>{formatDate(d.created_at)}</td>
               </tr>
             ))}
           </tbody>
