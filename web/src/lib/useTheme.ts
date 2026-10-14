@@ -5,12 +5,12 @@ export type Theme = "light" | "dark" | "system";
 const STORAGE_KEY = "theme";
 
 function readStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === "light" || stored === "dark" || stored === "system") {
     return stored;
   }
-  return "dark";
+  return "light";
 }
 
 export function useTheme() {

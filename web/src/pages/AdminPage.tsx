@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { Logo } from "../components/Logo";
+import { Segmented } from "../components/Segmented";
 import { formatDate, nextMonthlyRenewal } from "../lib/format";
 import type { Client, Domain, Mailbox } from "../lib/types";
 
@@ -75,15 +76,66 @@ function FeeCell({ mailbox }: { mailbox: Mailbox }) {
   );
 }
 
+type Tab = "mailboxes" | "domains" | "clients";
+type RenewalView = "all" | "week" | "month" | "suspended";
+
+const DAY_MS = 86_400_000;
+
+function daysUntil(date: Date): number {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - start.getTime()) / DAY_MS);
+}
+
+function dueLabel(days: number): string {
+  if (days <= 0) return "today";
+  if (days === 1) return "tomorrow";
+  return `in ${days} days`;
+}
+
+function dueGroup(m: Mailbox, days: number): string {
+  if (m.status !== "active") return "Suspended";
+  if (days <= 7) return "Due this week";
+  if (days <= 30) return "Due this month";
+  return "Later";
+}
+
 export function AdminPage() {
   const { user, signOut } = useAuth();
   const queryClient = useQueryClient();
   const [statusPending, setStatusPending] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("mailboxes");
+  const [renewalView, setRenewalView] = useState<RenewalView>("all");
 
   const { data } = useQuery({ queryKey: ["admin-overview"], queryFn: fetchAdminOverview });
   const clients = data?.clients ?? [];
   const domains = data?.domains ?? [];
   const mailboxes = data?.mailboxes ?? [];
+
+  const rows = mailboxes
+    .map((m) => {
+      const renewal = nextMonthlyRenewal(m.created_at);
+      return { m, renewal, days: daysUntil(renewal) };
+    })
+    .sort((a, b) => a.renewal.getTime() - b.renewal.getTime());
+  const activeRows = rows.filter((r) => r.m.status === "active");
+  const counts = {
+    all: rows.length,
+    week: activeRows.filter((r) => r.days <= 7).length,
+    month: activeRows.filter((r) => r.days <= 30).length,
+    suspended: rows.length - activeRows.length,
+  };
+  const visibleRows = rows.filter((r) =>
+    renewalView === "week"
+      ? r.m.status === "active" && r.days <= 7
+      : renewalView === "month"
+        ? r.m.status === "active" && r.days <= 30
+        : renewalView === "suspended"
+          ? r.m.status !== "active"
+          : true,
+  );
 
   async function toggleStatus(m: Mailbox) {
     const nextStatus = m.status === "active" ? "suspended_admin" : "active";
@@ -115,8 +167,37 @@ export function AdminPage() {
         </div>
       </header>
 
+      <div className="tab-row">
+        <Segmented
+          label="Admin sections"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "mailboxes", label: "Mailboxes", count: mailboxes.length },
+            { value: "domains", label: "Domains", count: domains.length },
+            { value: "clients", label: "Clients", count: clients.length },
+          ]}
+        />
+      </div>
+
+      {tab === "mailboxes" && (
       <section>
-        <h2>Mailboxes ({mailboxes.length})</h2>
+        <div className="tab-row">
+          <Segmented
+            small
+            label="Renewal filter"
+            value={renewalView}
+            onChange={setRenewalView}
+            options={[
+              { value: "all", label: "All", count: counts.all },
+              { value: "week", label: "Due this week", count: counts.week },
+              { value: "month", label: "Due in 30 days", count: counts.month },
+              { value: "suspended", label: "Suspended", count: counts.suspended },
+            ]}
+          />
+        </div>
+        {visibleRows.length === 0 && <p className="muted">Nothing here.</p>}
+        {visibleRows.length > 0 && (
         <table className="admin-table">
           <thead>
             <tr>
@@ -129,31 +210,52 @@ export function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {mailboxes.map((m) => (
-              <tr key={m.id}>
-                <td>{m.address}</td>
-                <td>
-                  <span className={`status-pill status-${m.status}`}>{m.status}</span>
-                </td>
-                <td>
-                  <FeeCell mailbox={m} />
-                </td>
-                <td>{formatDate(m.created_at)}</td>
-                <td>{m.status === "active" ? formatDate(nextMonthlyRenewal(m.created_at).toISOString()) : "-"}</td>
-                <td className="app-header-actions" style={{ marginLeft: 0, gap: "0.6rem" }}>
-                  <Link to={`/admin/mailbox/${m.id}/inbox`}>View inbox</Link>
-                  <button type="button" onClick={() => toggleStatus(m)} disabled={statusPending === m.id}>
-                    {statusPending === m.id ? "…" : m.status === "active" ? "Suspend" : "Reactivate"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {visibleRows.map(({ m, renewal, days }, i) => {
+              const group = dueGroup(m, days);
+              const showGroup = renewalView === "all" && (i === 0 || dueGroup(visibleRows[i - 1].m, visibleRows[i - 1].days) !== group);
+              return (
+                <Fragment key={m.id}>
+                  {showGroup && (
+                    <tr className="admin-group-row">
+                      <td colSpan={6}>{group}</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td>{m.address}</td>
+                    <td>
+                      <span className={`status-pill status-${m.status}`}>{m.status}</span>
+                    </td>
+                    <td>
+                      <FeeCell mailbox={m} />
+                    </td>
+                    <td>{formatDate(m.created_at)}</td>
+                    <td>
+                      {m.status === "active" ? (
+                        <span className={days <= 7 ? "due-soon" : undefined}>
+                          {formatDate(renewal.toISOString())} <span className="muted">({dueLabel(days)})</span>
+                        </span>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="app-header-actions" style={{ marginLeft: 0, gap: "0.6rem" }}>
+                      <Link to={`/admin/mailbox/${m.id}/inbox`}>View inbox</Link>
+                      <button type="button" onClick={() => toggleStatus(m)} disabled={statusPending === m.id}>
+                        {statusPending === m.id ? "…" : m.status === "active" ? "Suspend" : "Reactivate"}
+                      </button>
+                    </td>
+                  </tr>
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
+        )}
       </section>
+      )}
 
+      {tab === "domains" && (
       <section>
-        <h2>Domains ({domains.length})</h2>
         <table className="admin-table">
           <thead>
             <tr>
@@ -175,15 +277,17 @@ export function AdminPage() {
           </tbody>
         </table>
       </section>
+      )}
 
+      {tab === "clients" && (
       <section>
-        <h2>Clients ({clients.length})</h2>
         <ul>
           {clients.map((c) => (
             <li key={c.id}>{c.name}</li>
           ))}
         </ul>
       </section>
+      )}
     </div>
   );
 }

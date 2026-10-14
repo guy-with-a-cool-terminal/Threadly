@@ -4,8 +4,8 @@
   "description": "Threadly is a fast, focused email client for reading and organizing your inbox.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0e0f0e",
-  "theme_color": "#3f9268",
+  "background_color": "#ffffff",
+  "theme_color": "#157f3c",
   "icons": [
     {
       "src": "/icons/icon-192.png",

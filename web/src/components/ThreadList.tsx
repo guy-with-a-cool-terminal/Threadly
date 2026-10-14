@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Star, Archive, Trash2, MailOpen, Mail, X } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { Avatar } from "./Avatar";
+import { Segmented } from "./Segmented";
 import type { Folder } from "./InboxShell";
 import type { Thread } from "../lib/types";
 
@@ -70,6 +71,21 @@ async function fetchThreads(mailboxId: string, folder: Folder, search: string): 
   return threads.map((t) => ({ ...t, correspondent: correspondentByThread.get(t.id) ?? "?" }));
 }
 
+type View = "all" | "unread" | "starred";
+
+function dateGroup(iso: string | null): string {
+  if (!iso) return "Earlier";
+  const d = new Date(iso);
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const days = Math.floor((startOfToday.getTime() - new Date(d).setHours(0, 0, 0, 0)) / 86_400_000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return "This week";
+  if (days < 30) return "This month";
+  return "Earlier";
+}
+
 export function ThreadList({
   mailboxId,
   basePath,
@@ -83,6 +99,7 @@ export function ThreadList({
 }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<View>("all");
   const queryClient = useQueryClient();
 
   const { data: threads, isLoading } = useQuery({
@@ -132,6 +149,14 @@ export function ThreadList({
       return next;
     });
   }
+
+  const allThreads = threads ?? [];
+  const visibleThreads = allThreads.filter((t) => (view === "unread" ? !t.is_read : view === "starred" ? t.starred : true));
+  const viewOptions: { value: View; label: string; count?: number }[] = [
+    { value: "all", label: "All", count: allThreads.length },
+    { value: "unread", label: "Unread", count: allThreads.filter((t) => !t.is_read).length },
+    { value: "starred", label: "Starred", count: allThreads.filter((t) => t.starred).length },
+  ];
 
   const folderQuery = folder === "inbox" ? "" : `folder=${folder}&`;
 
@@ -196,11 +221,18 @@ export function ThreadList({
           onChange={(e) => setSearch(e.target.value)}
         />
       )}
+      <div className="tab-row">
+        <Segmented small label="Filter threads" options={viewOptions} value={view} onChange={setView} />
+      </div>
       {isLoading && <p>Loading…</p>}
-      {!isLoading && threads?.length === 0 && <p className="muted">Nothing here.</p>}
+      {!isLoading && visibleThreads.length === 0 && <p className="muted">Nothing here.</p>}
       <ul className="thread-list">
-        {threads?.map((t) => (
-          <li key={t.id}>
+        {visibleThreads.map((t, i) => (
+          <Fragment key={t.id}>
+          {dateGroup(t.last_message_at) !== dateGroup(visibleThreads[i - 1]?.last_message_at ?? null) || i === 0 ? (
+            <li className="thread-group-label">{dateGroup(t.last_message_at)}</li>
+          ) : null}
+          <li>
             <label className="thread-checkbox">
               <input
                 type="checkbox"
@@ -229,6 +261,7 @@ export function ThreadList({
               </span>
             </Link>
           </li>
+          </Fragment>
         ))}
       </ul>
     </div>

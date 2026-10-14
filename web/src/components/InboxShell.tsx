@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,13 +9,13 @@ import { AppHeader } from "./AppHeader";
 
 export type Folder = "inbox" | "sent" | "drafts" | "archive" | "spam" | "trash";
 
-const FOLDERS: { key: Folder; label: string; icon: typeof InboxIcon; query?: string }[] = [
+const FOLDERS: { key: Folder; label: string; icon: typeof InboxIcon; query?: string; group?: string }[] = [
   { key: "inbox", label: "Inbox", icon: InboxIcon },
   { key: "sent", label: "Sent", icon: Send, query: "folder=sent" },
   { key: "drafts", label: "Drafts", icon: FileText, query: "folder=drafts" },
-  { key: "archive", label: "Archive", icon: Archive, query: "folder=archive" },
-  { key: "spam", label: "Spam", icon: Ban, query: "folder=spam" },
-  { key: "trash", label: "Trash", icon: Trash2, query: "folder=trash" },
+  { key: "archive", group: "Organize", label: "Archive", icon: Archive, query: "folder=archive" },
+  { key: "spam", group: "Organize", label: "Spam", icon: Ban, query: "folder=spam" },
+  { key: "trash", group: "Organize", label: "Trash", icon: Trash2, query: "folder=trash" },
 ];
 
 async function fetchUnreadCount(mailboxId: string): Promise<number> {
@@ -103,9 +103,10 @@ export function InboxShell({
             Compose
           </Link>
           <nav className="folder-nav">
-            {FOLDERS.map((f) => (
+            {FOLDERS.map((f, i) => (
+              <Fragment key={f.key}>
+              {f.group && FOLDERS[i - 1]?.group !== f.group && <p className="folder-group-label">{f.group}</p>}
               <Link
-                key={f.key}
                 to={f.query ? `${basePath}?${f.query}` : basePath}
                 className={activeFolder === f.key ? "folder-active" : ""}
               >
@@ -115,6 +116,7 @@ export function InboxShell({
                   <span className="folder-badge">{unreadCount}</span>
                 )}
               </Link>
+              </Fragment>
             ))}
           </nav>
           {storageUsed !== undefined && (
