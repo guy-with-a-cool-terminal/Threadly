@@ -106,7 +106,9 @@ export function InboxPage() {
   }
 
   return (
-    <InboxShell mailboxAddress={mailbox.address} mailboxId={mailbox.id} basePath={basePath} activeFolder={composing ? undefined : folder}>
+    <InboxShell mailboxAddress={mailbox.address} mailboxId={mailbox.id} basePath={basePath} activeFolder={composing ? undefined : folder}
+      renewal={routeMailboxId ? undefined : { paidThrough: mailbox.paid_through, feeKes: mailbox.monthly_fee_kes }}
+    >
       <div className={`mail-split ${composing || threadIdParam ? "has-selection" : ""}`}>
         <div className="mail-split-list">
           {folder === "sent" ? (

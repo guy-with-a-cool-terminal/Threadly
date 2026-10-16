@@ -24,3 +24,19 @@ export function nextMonthlyRenewal(startIso: string, now: Date = new Date()): Da
     if (candidate > now) return candidate;
   }
 }
+
+
+export function daysUntil(date: Date, now: Date = new Date()): number {
+  const a = new Date(now);
+  a.setHours(0, 0, 0, 0);
+  const b = new Date(date);
+  b.setHours(0, 0, 0, 0);
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+}
+
+export function addMonths(date: Date, months: number): Date {
+  const target = new Date(date.getFullYear(), date.getMonth() + months, 1, date.getHours(), date.getMinutes());
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(date.getDate(), lastDay));
+  return target;
+}

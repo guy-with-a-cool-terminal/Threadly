@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../lib/useAuth";
 import { Logo } from "../components/Logo";
 import { Segmented } from "../components/Segmented";
-import { formatDate, nextMonthlyRenewal } from "../lib/format";
+import { addMonths, daysUntil, formatDate, nextMonthlyRenewal } from "../lib/format";
 import type { Client, Domain, Mailbox } from "../lib/types";
 
 async function fetchAdminOverview() {
@@ -23,6 +23,40 @@ async function fetchAdminOverview() {
     domains: (d.data as Domain[]) ?? [],
     mailboxes: (m.data as Mailbox[]) ?? [],
   };
+}
+
+function MarkPaidButton({ mailbox }: { mailbox: Mailbox }) {
+  const queryClient = useQueryClient();
+  const pay = useMutation({
+    mutationFn: async () => {
+      const now = new Date();
+      const current = mailbox.paid_through ? new Date(mailbox.paid_through) : now;
+      const next = addMonths(current > now ? current : now, 1);
+      const { error: payError } = await supabase
+        .from("mailbox_payments")
+        .insert({ mailbox_id: mailbox.id, amount_kes: mailbox.monthly_fee_kes });
+      if (payError) throw payError;
+      const { error } = await supabase
+        .from("mailboxes")
+        .update({ paid_through: next.toISOString(), last_payment_date: now.toISOString() })
+        .eq("id", mailbox.id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+  });
+  return (
+    <button
+      type="button"
+      disabled={pay.isPending}
+      onClick={() => {
+        if (window.confirm(`Record KES ${mailbox.monthly_fee_kes} paid for ${mailbox.address} and extend by one month?`)) {
+          pay.mutate();
+        }
+      }}
+    >
+      {pay.isPending ? "…" : "Mark paid"}
+    </button>
+  );
 }
 
 function FeeCell({ mailbox }: { mailbox: Mailbox }) {
@@ -79,24 +113,16 @@ function FeeCell({ mailbox }: { mailbox: Mailbox }) {
 type Tab = "mailboxes" | "domains" | "clients";
 type RenewalView = "all" | "week" | "month" | "suspended";
 
-const DAY_MS = 86_400_000;
-
-function daysUntil(date: Date): number {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const target = new Date(date);
-  target.setHours(0, 0, 0, 0);
-  return Math.round((target.getTime() - start.getTime()) / DAY_MS);
-}
-
 function dueLabel(days: number): string {
-  if (days <= 0) return "today";
+  if (days < 0) return `${-days} ${days === -1 ? "day" : "days"} overdue`;
+  if (days === 0) return "today";
   if (days === 1) return "tomorrow";
   return `in ${days} days`;
 }
 
 function dueGroup(m: Mailbox, days: number): string {
   if (m.status !== "active") return "Suspended";
+  if (days < 0) return "Overdue";
   if (days <= 7) return "Due this week";
   if (days <= 30) return "Due this month";
   return "Later";
@@ -116,7 +142,7 @@ export function AdminPage() {
 
   const rows = mailboxes
     .map((m) => {
-      const renewal = nextMonthlyRenewal(m.created_at);
+      const renewal = m.paid_through ? new Date(m.paid_through) : nextMonthlyRenewal(m.created_at);
       return { m, renewal, days: daysUntil(renewal) };
     })
     .sort((a, b) => a.renewal.getTime() - b.renewal.getTime());
@@ -240,6 +266,7 @@ export function AdminPage() {
                     </td>
                     <td className="app-header-actions" style={{ marginLeft: 0, gap: "0.6rem" }}>
                       <Link to={`/admin/mailbox/${m.id}/inbox`}>View inbox</Link>
+                      <MarkPaidButton mailbox={m} />
                       <button type="button" onClick={() => toggleStatus(m)} disabled={statusPending === m.id}>
                         {statusPending === m.id ? "…" : m.status === "active" ? "Suspend" : "Reactivate"}
                       </button>

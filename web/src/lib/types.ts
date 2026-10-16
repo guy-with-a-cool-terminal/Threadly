@@ -29,6 +29,7 @@ export interface Mailbox {
   last_payment_date: string | null;
   late_fee_pending: boolean;
   signature: string | null;
+  paid_through: string | null;
   created_at: string;
 }
 

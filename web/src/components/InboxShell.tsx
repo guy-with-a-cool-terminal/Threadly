@@ -6,6 +6,7 @@ import { Inbox as InboxIcon, Send, FileText, Archive, Ban, Trash2, SquarePen } f
 import { supabase } from "../lib/supabaseClient";
 import { formatBytes } from "../lib/format";
 import { AppHeader } from "./AppHeader";
+import { RenewalNotice } from "./RenewalNotice";
 
 export type Folder = "inbox" | "sent" | "drafts" | "archive" | "spam" | "trash";
 
@@ -48,12 +49,14 @@ export function InboxShell({
   mailboxId,
   basePath,
   activeFolder,
+  renewal,
   children,
 }: {
   mailboxAddress: string;
   mailboxId: string;
   basePath: string;
   activeFolder?: Folder;
+  renewal?: { paidThrough: string | null; feeKes: number };
   children: ReactNode;
 }) {
   const queryClient = useQueryClient();
@@ -96,6 +99,7 @@ export function InboxShell({
   return (
     <div className="page page-wide">
       <AppHeader mailboxAddress={mailboxAddress} />
+      {renewal && <RenewalNotice paidThrough={renewal.paidThrough} feeKes={renewal.feeKes} />}
       <div className="inbox-layout">
         <aside className="inbox-sidebar">
           <Link to={`${basePath}?compose=1`} className="compose-button">

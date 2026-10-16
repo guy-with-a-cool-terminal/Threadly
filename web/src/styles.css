@@ -1456,3 +1456,30 @@ button:disabled {
   color: var(--warning);
   font-weight: 600;
 }
+
+.renewal-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  background: var(--warning-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+}
+
+.renewal-notice p {
+  flex: 1;
+  margin: 0;
+}
+
+.renewal-notice-expired {
+  background: var(--danger-soft);
+}
+
+.renewal-notice .icon-button {
+  width: 34px;
+  height: 34px;
+  border: none;
+}
